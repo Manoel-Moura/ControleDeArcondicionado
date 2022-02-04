@@ -1,6 +1,9 @@
 #include <UniversalTelegramBot.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
+#include "uFire_SHT20.h"
+
+uFire_SHT20 sht20;
 
 char ssid[] = "NPD-Estagiarios";               // nome do seu roteador WIFI (SSID)
 char password[] = "tanaporta";    // senha do roteador WIFI
@@ -59,8 +62,28 @@ void setup()
 
 }
 
+float temperatura() {
+  float media = 0.0;
+
+  for (int i = 0 ; i < 20; i++) {
+    media +=  sht20.temperature();
+  }
+  return media / 20;
+}
+
+float humidade() {
+  float media = 0.0;
+
+  for (int i = 0 ; i < 20; i++) {
+    media +=  sht20.humidity();
+  }
+  return media / 20;
+}
+
 void loop()
 {
+
+
   {
     digitalWrite(LED_BUILTIN, LOW);
     delay(100);
@@ -79,24 +102,36 @@ void loop()
         String text = bot.messages[i].text;
         String from_name = bot.messages[i].from_name;
 
-
-        if (text == "On" || text == "on" || text == "ON") {
-          digitalWrite(R1, HIGH) ;
-          bot.sendMessage(chat_id, from_name + " / Dispositivo / SAÍDA 1 LIGADA", "");
+        if (text == "TEMPERATURA" || text == "Temperatura" || text == "temperatura") {
+          bot.sendMessage(chat_id, from_name + "\nTemperatura: " + (String)temperatura() + " °C", "");
         }
 
-        if (text == "Off" || text == "off" || text == "OFF") {
-          digitalWrite(R1, LOW);
-          bot.sendMessage(chat_id, from_name + " / Dispositivo / SAÍDA 1 DESLIGADA", "");
+        if (text == "HUMIDADE" || text == "Humidade" || text == "humidade") {
+          bot.sendMessage(chat_id, from_name +  "\nHumidade: " +(String)humidade() + " RH%", "");
         }
+        if (text == "STATUS" || text == "Status" || text == "status") {
+          bot.sendMessage(chat_id, from_name +  "\nTemperatura: " + (String)temperatura() + " °C\n" + "Humidade: " +(String)humidade() + " RH%", "");
+        }
+        ////
+        //        if (text == "On" || text == "on" || text == "ON") {
+        //          digitalWrite(R1, HIGH) ;
+        //
+        //          bot.sendMessage(chat_id, from_name + mediaTemperatura(A0), "");
+        //        }
 
+        //        if (text == "Off" || text == "off" || text == "OFF") {
+        //          digitalWrite(R1, LOW);
+        //          bot.sendMessage(chat_id, from_name + " / Dispositivo / SAÍDA 1 DESLIGADA", "");
+        //        }
+        //
+        //      }
+
+        numNewMessages = bot.getUpdates(bot.last_message_received + 1);
       }
 
-      numNewMessages = bot.getUpdates(bot.last_message_received + 1);
+      Bot_lasttime = millis();
     }
 
-    Bot_lasttime = millis();
+
   }
-
-
 }
