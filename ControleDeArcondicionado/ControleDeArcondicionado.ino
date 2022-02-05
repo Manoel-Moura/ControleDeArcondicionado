@@ -2,6 +2,10 @@
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
 #include "uFire_SHT20.h"
+int cont = 0;             //Contador para enviar 3 mensagens de "Ar-condicionado desligou!"
+float temperatura = 0.0;  
+float umidade = 0.0;
+String manoel = "1425097270";  // id do meu chat_bot
 
 uFire_SHT20 sht20;
 
@@ -59,10 +63,11 @@ void setup()
     digitalWrite(LED_BUILTIN, HIGH);
     delay(200);
   }
+  bot.sendMessage(manoel, "Estou ligado e pronto para transmitir! ", ""); //Informa quando estiver ligado e pronto para transmitir
 
 }
 
-float temperatura() {
+float temp() {   //Função para calcular a media de 20 leituras de Temperatura
   float media = 0.0;
 
   for (int i = 0 ; i < 20; i++) {
@@ -71,7 +76,7 @@ float temperatura() {
   return media / 20;
 }
 
-float humidade() {
+float umi() { //Função para calcular a media de 20 leituras de Umidade
   float media = 0.0;
 
   for (int i = 0 ; i < 20; i++) {
@@ -82,13 +87,21 @@ float humidade() {
 
 void loop()
 {
-
-
+  temperatura = temp(); // Leitura da Temperatura
+  umidade = umi(); //Leitura da Umidade
   {
     digitalWrite(LED_BUILTIN, LOW);
     delay(100);
     digitalWrite(LED_BUILTIN, HIGH);
     delay(100);
+  }
+  if (temperatura >= 24 && cont < 3) { 
+    bot.sendMessage(manoel, "Ar-condicionado desligou! ", "");
+    cont++;
+  }
+  if (temperatura < 23 && cont == 3) {
+    bot.sendMessage(manoel, "Ar-condicionado foi ligado!", "");
+    cont = 0;
   }
 
   if (millis() > Bot_lasttime + Bot_mtbs) {
@@ -102,29 +115,22 @@ void loop()
         String text = bot.messages[i].text;
         String from_name = bot.messages[i].from_name;
 
-        if (text == "TEMPERATURA" || text == "Temperatura" || text == "temperatura") {
-          bot.sendMessage(chat_id, from_name + "\nTemperatura: " + (String)temperatura() + " °C", "");
+
+        if (chat_id != manoel) {
+          bot.sendMessage(manoel, from_name + " solicitou " + text, "");
         }
 
-        if (text == "HUMIDADE" || text == "Humidade" || text == "humidade") {
-          bot.sendMessage(chat_id, from_name +  "\nHumidade: " +(String)humidade() + " RH%", "");
+        if (text == "TEMPERATURA" || text == "Temperatura" || text == "temperatura") {
+          bot.sendMessage(chat_id, from_name + "\nTemperatura: " + (String)temperatura + " °C", "");
+        }
+
+        if (text == "UMIDADE" || text == "Umidade" || text == "umidade") {
+          bot.sendMessage(chat_id, from_name +  "\nUmidade: " + (String)umidade + " RH%", "");
         }
         if (text == "STATUS" || text == "Status" || text == "status") {
-          bot.sendMessage(chat_id, from_name +  "\nTemperatura: " + (String)temperatura() + " °C\n" + "Humidade: " +(String)humidade() + " RH%", "");
+          bot.sendMessage(chat_id, from_name +  "\nTemperatura: " + (String)temperatura + " °C\n" + "Umidade: " + (String)umidade + " RH%", "");
         }
-        ////
-        //        if (text == "On" || text == "on" || text == "ON") {
-        //          digitalWrite(R1, HIGH) ;
-        //
-        //          bot.sendMessage(chat_id, from_name + mediaTemperatura(A0), "");
-        //        }
 
-        //        if (text == "Off" || text == "off" || text == "OFF") {
-        //          digitalWrite(R1, LOW);
-        //          bot.sendMessage(chat_id, from_name + " / Dispositivo / SAÍDA 1 DESLIGADA", "");
-        //        }
-        //
-        //      }
 
         numNewMessages = bot.getUpdates(bot.last_message_received + 1);
       }
