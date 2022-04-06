@@ -12,7 +12,7 @@
 Adafruit_AHTX0 aht;
 
 // DECLARAÇÃO DE VARIÁVEIS GLOBAIS
-const long tempoDeEnvio = 600000;
+const long tempoDeEnvio = 300000; // 5 min
 unsigned long tempoAnterior = 0;
 double temperatura;
 double umidade;
@@ -22,8 +22,9 @@ String ADMINISTRADOR = "1425097270";  // ID DO BOT DO ADMINISTRADOR
 #define R1 2    // GPIO_14 
 int Bot_mtbs = 1000; 
 long Bot_lasttime;   
-int amostra = 20;
+int amostra = 10;
 sensors_event_t humidity, temp;
+int IRledPin =  13; 
 
 
 
@@ -49,6 +50,9 @@ void  EnviaProBD();
 void ConexaoTelegram();
 double MediaTemperatura(int amostra);
 double MediaUmidade(int amostra);
+void desliga();
+void liga();
+void setTemp (int temp);
 
 
 void setup() {
@@ -58,6 +62,7 @@ void setup() {
   digitalWrite(R1, LOW);
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
+  pinMode(IRledPin, OUTPUT);
 
   // ESPERA O SERIAL ESTAR PRONTO
   while (!Serial);
@@ -73,14 +78,14 @@ void loop() {
   umidade = MediaUmidade(amostra); //Leitura da Umidade
 // /
 
-  if (temperatura >= 24 && cont < 3) { 
-    bot.sendMessage(ADMINISTRADOR, "Ar-condicionado desligou! ", "");
-    cont++;
-  }
-  if (temperatura < 23 && cont == 3) {
-    bot.sendMessage(ADMINISTRADOR, "Ar-condicionado foi ligado!", "");
-    cont = 0;
-  }
+//  if (temperatura >= 24 && cont < 3) { 
+//    bot.sendMessage(ADMINISTRADOR, "Ar-condicionado desligou! ", "");
+//    cont++;
+//  }
+//  if (temperatura < 23 && cont == 3) {
+//    bot.sendMessage(ADMINISTRADOR, "Ar-condicionado foi ligado!", "");
+//    cont = 0;
+//  }
 
   if (millis() > Bot_lasttime + Bot_mtbs) {
 
@@ -92,15 +97,42 @@ void loop() {
         String chat_id = String(bot.messages[i].chat_id);
         String text = bot.messages[i].text;
         String from_name = bot.messages[i].from_name;
+        int novaTemp = text.toInt();
+        String mensagem = "\t\t\tLista de Comandos\n\n(TEMPERATURA,Temperatura,temperatura) - retorana a temperatura;\n\n(UMIDADE,Umidade,umidade) - Retorana a umidade;\n\n(STATUS,Status,status) - Retorana a temperatura e umidade;\n\n\t\t\tCOMANDOS DO ADMINISTRADOR\n\n(LIGAR,Ligar,ligar) - Liga o ar-condicionado\n\n(DESLIGAR,Desligar,desligar) - Desliga o ar-condicionado\n\n(Valores entre 17 e 22) - Muda a temperatura do ar-condicionado\n";
+          
+         
+         
+         
 
 
         if (chat_id != ADMINISTRADOR) {
           bot.sendMessage(ADMINISTRADOR, from_name + " solicitou " + text, "");
         }
+        if (chat_id == ADMINISTRADOR && (novaTemp >= 17 && novaTemp <= 22)) {
+         
+          bot.sendMessage(ADMINISTRADOR, "Temperatura atualizada para " + (String)novaTemp +" °C", "");
+          setTemp(novaTemp);
+        }
+         if (chat_id == ADMINISTRADOR && (novaTemp < 17 || novaTemp > 22) && novaTemp != 0) {
+          bot.sendMessage(ADMINISTRADOR, " Por segurança a temperatura só pode variar entre 17 e 22 °C", "");
+        }
+        if (chat_id == ADMINISTRADOR && (text == "ligar" || text == "Ligar" || text == "LIGAR")) {
+          liga();
+          bot.sendMessage(ADMINISTRADOR, " Arcondicionado Ligado!", "");
+        }
+        if (chat_id == ADMINISTRADOR && (text == "DESLIGAR" || text == "Desligar" || text == "desligar")) {
+          desliga();
+          bot.sendMessage(ADMINISTRADOR, " Arcondicionado Desligado!", "");
+        }
+        
 
         if (text == "TEMPERATURA" || text == "Temperatura" || text == "temperatura") {
           bot.sendMessage(chat_id, from_name + "\nTemperatura: " + (String)temperatura + " °C", "");
         }
+        if (text == "/start") {
+          bot.sendMessage(chat_id,(String)mensagem, "");
+        }
+
 
         if (text == "UMIDADE" || text == "Umidade" || text == "umidade") {
           bot.sendMessage(chat_id, from_name +  "\nUmidade: " + (String)umidade + " RH%", "");
@@ -220,4 +252,23 @@ double MediaUmidade(int amostra) { //Função para calcular a media de 20 leitur
     media +=  humidity.relative_humidity;
   }
   return media / amostra;
+}
+
+void pulseIR(long microsecs) {
+  // we'll count down from the number of microseconds we are told to wait
+
+  cli();  // this turns off any background interrupts
+
+  while (microsecs > 0) {
+    // 38 kHz is about 13 microseconds high and 13 microseconds low
+    digitalWrite(IRledPin, HIGH);  // this takes about 3 microseconds to happen
+    delayMicroseconds(10);         // hang out for 10 microseconds
+    digitalWrite(IRledPin, LOW);   // this also takes about 3 microseconds
+    delayMicroseconds(10);         // hang out for 10 microseconds
+
+    // so 26 microseconds altogether
+    microsecs -= 26;
+  }
+
+  sei();  // this turns them back on
 }
