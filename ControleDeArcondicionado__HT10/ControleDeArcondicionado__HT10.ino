@@ -4,27 +4,33 @@
 #include <UniversalTelegramBot.h>
 #include <WiFiClientSecure.h>
 #include <Adafruit_AHTX0.h>
+#include "Utilities.h" // for int64ToAscii() helper function
 
-
+#include "CTBot.h"
+CTBot myBot;
 
 
 //OBJETO AHTX0 PARA LEITURA DO SENSOR
 Adafruit_AHTX0 aht;
 
 // DECLARAÇÃO DE VARIÁVEIS GLOBAIS
-const long tempoDeEnvio = 300000; // 5 min
+const long tempoDeEnvio = 120000; // 2 min
 unsigned long tempoAnterior = 0;
 double temperatura;
 double umidade;
-int cont = 0;             //Contador para enviar 3 mensagens de "Ar-condicionado desligou!"
-#define BOT_TOKEN "2063266093:AAEd_NNik81K4gCj_G2TiJIuh2H_3AD9We4"  //chave Token Bot Telegram
-String ADMINISTRADOR = "1425097270";  // ID DO BOT DO ADMINISTRADOR
 #define R1 2    // GPIO_14 
-int Bot_mtbs = 1000; 
-long Bot_lasttime;   
+//int Bot_mtbs = 1000;
+//long Bot_lasttime;
 int amostra = 10;
 sensors_event_t humidity, temp;
-int IRledPin =  13; 
+int IRledPin =  13;
+
+
+//Variaveis do bot
+String mensagem = "\t\t\tLista de Comandos\n\n(TEMPERATURA,Temperatura,temperatura) - retorana a temperatura;\n\n(UMIDADE,Umidade,umidade) - Retorana a umidade;\n\n(STATUS,Status,status) - Retorana a temperatura e umidade;\n\n\t\t\tCOMANDOS DO ADMINISTRADOR\n\n(LIGAR,Ligar,ligar) - Liga o ar-condicionado\n\n(DESLIGAR,Desligar,desligar) - Desliga o ar-condicionado\n\n(Valores entre 17 e 22) - Muda a temperatura do ar-condicionado\n";
+int ADMINISTRADOR = 1425097270;  // ID DO BOT DO ADMINISTRADOR
+#define BOT_TOKEN "2063266093:AAEd_NNik81K4gCj_G2TiJIuh2H_3AD9We4"  //chave Token Bot Telegram
+
 
 
 
@@ -74,88 +80,69 @@ void setup() {
 
 void loop() {
   unsigned long tempoAtual = millis();
-  temperatura =  MediaTemperatura(amostra); // Leitura da Temperatura
-  umidade = MediaUmidade(amostra); //Leitura da Umidade
-// /
-
-//  if (temperatura >= 24 && cont < 3) { 
-//    bot.sendMessage(ADMINISTRADOR, "Ar-condicionado desligou! ", "");
-//    cont++;
-//  }
-//  if (temperatura < 23 && cont == 3) {
-//    bot.sendMessage(ADMINISTRADOR, "Ar-condicionado foi ligado!", "");
-//    cont = 0;
-//  }
-
-  if (millis() > Bot_lasttime + Bot_mtbs) {
-
-    int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
-    while (numNewMessages) {
-
-      for (int i = 0; i < numNewMessages; i++) {
-
-        String chat_id = String(bot.messages[i].chat_id);
-        String text = bot.messages[i].text;
-        String from_name = bot.messages[i].from_name;
-        int novaTemp = text.toInt();
-        String mensagem = "\t\t\tLista de Comandos\n\n(TEMPERATURA,Temperatura,temperatura) - retorana a temperatura;\n\n(UMIDADE,Umidade,umidade) - Retorana a umidade;\n\n(STATUS,Status,status) - Retorana a temperatura e umidade;\n\n\t\t\tCOMANDOS DO ADMINISTRADOR\n\n(LIGAR,Ligar,ligar) - Liga o ar-condicionado\n\n(DESLIGAR,Desligar,desligar) - Desliga o ar-condicionado\n\n(Valores entre 17 e 22) - Muda a temperatura do ar-condicionado\n";
-          
-         
-         
-         
 
 
-        if (chat_id != ADMINISTRADOR) {
-          bot.sendMessage(ADMINISTRADOR, from_name + " solicitou " + text, "");
-        }
-        if (chat_id == ADMINISTRADOR && (novaTemp >= 17 && novaTemp <= 22)) {
-         
-          bot.sendMessage(ADMINISTRADOR, "Temperatura atualizada para " + (String)novaTemp +" °C", "");
-          setTemp(novaTemp);
-        }
-         if (chat_id == ADMINISTRADOR && (novaTemp < 17 || novaTemp > 22) && novaTemp != 0) {
-          bot.sendMessage(ADMINISTRADOR, " Por segurança a temperatura só pode variar entre 17 e 22 °C", "");
-        }
-        if (chat_id == ADMINISTRADOR && (text == "ligar" || text == "Ligar" || text == "LIGAR")) {
-          liga();
-          bot.sendMessage(ADMINISTRADOR, " Arcondicionado Ligado!", "");
-        }
-        if (chat_id == ADMINISTRADOR && (text == "DESLIGAR" || text == "Desligar" || text == "desligar")) {
-          desliga();
-          bot.sendMessage(ADMINISTRADOR, " Arcondicionado Desligado!", "");
-        }
-        
+  TBMessage msg;
+  //Testa se o bot recebeu menssagem
+  if (CTBotMessageText == myBot.getNewMessage(msg)) {
 
-        if (text == "TEMPERATURA" || text == "Temperatura" || text == "temperatura") {
-          bot.sendMessage(chat_id, from_name + "\nTemperatura: " + (String)temperatura + " °C", "");
-        }
-        if (text == "/start") {
-          bot.sendMessage(chat_id,(String)mensagem, "");
-        }
+    String MensagemRecebida = msg.text;
+    int novaTemp = MensagemRecebida.toInt();
 
-
-        if (text == "UMIDADE" || text == "Umidade" || text == "umidade") {
-          bot.sendMessage(chat_id, from_name +  "\nUmidade: " + (String)umidade + " RH%", "");
-        }
-        if (text == "STATUS" || text == "Status" || text == "status") {
-          bot.sendMessage(chat_id, from_name +  "\nTemperatura: " + (String)temperatura + " °C\n" + "Umidade: " + (String)umidade + " RH%", "");
-        }
-
-
-        numNewMessages = bot.getUpdates(bot.last_message_received + 1);
-      }
-
-      Bot_lasttime = millis();
+    //Lista de comandos
+    if (MensagemRecebida == "/start") {
+      myBot.sendMessage(msg.sender.id, (String)mensagem, "");
     }
 
+    //Comandos publicos
+    //=========================================================================================================================================================================================================
+    if (MensagemRecebida == "TEMPERATURA" || MensagemRecebida == "Temperatura" || MensagemRecebida == "temperatura") {
+      temperatura =  MediaTemperatura(amostra);
+      myBot.sendMessage(msg.sender.id, msg.sender.firstName + " " + msg.sender.lastName + "\nTemperatura: " + (String)temperatura + " °C");
+    }
+    if (MensagemRecebida == "UMIDADE" || MensagemRecebida == "Umidade" || MensagemRecebida == "umidade") {
+      umidade = MediaUmidade(amostra);//Leitura da Umidade
+      myBot.sendMessage(msg.sender.id, msg.sender.firstName + " " + msg.sender.lastName +  "\nUmidade: " + (String)umidade + " RH%", "");
+    }
+    if (MensagemRecebida == "STATUS" || MensagemRecebida == "Status" || MensagemRecebida == "status") {
+      temperatura =  MediaTemperatura(amostra);
+      umidade = MediaUmidade(amostra);
+      myBot.sendMessage(msg.sender.id, msg.sender.firstName + " " + msg.sender.lastName +  "\nTemperatura: " + (String)temperatura + " °C\n" + "Umidade: " + (String)umidade + " RH%", "");
+    }
+    //=========================================================================================================================================================================================================
+
+    //Comandos de Administrador
+    if (msg.sender.id != ADMINISTRADOR) {
+      myBot.sendMessage(ADMINISTRADOR, msg.sender.firstName + " " + msg.sender.lastName  + "\nChat ID: " + int64ToAscii(msg.group.id) + "\nSolicitou: " + MensagemRecebida, "");
+    }
+    if (msg.sender.id == ADMINISTRADOR && (novaTemp >= 17 && novaTemp <= 22)) {
+
+      myBot.sendMessage(ADMINISTRADOR, "Temperatura atualizada para " + (String)novaTemp + " °C", "");
+      setTemp(novaTemp);
+    }
+    if (msg.sender.id == ADMINISTRADOR && (novaTemp < 17 || novaTemp > 22) && novaTemp != 0) {
+      myBot.sendMessage(ADMINISTRADOR, " Por segurança a temperatura só pode variar entre 17 e 22 °C", "");
+    }
+    if (msg.sender.id == ADMINISTRADOR && (MensagemRecebida == "ligar" || MensagemRecebida == "Ligar" || MensagemRecebida == "LIGAR")) {
+      liga();
+      myBot.sendMessage(ADMINISTRADOR, " Arcondicionado Ligado!", "");
+    }
+    if (msg.sender.id == ADMINISTRADOR && (MensagemRecebida == "DESLIGAR" || MensagemRecebida == "Desligar" || MensagemRecebida == "desligar")) {
+      desliga();
+      myBot.sendMessage(ADMINISTRADOR, " Arcondicionado Desligado!", "");
+    }
 
   }
- 
-  if(tempoAtual - tempoAnterior >= tempoDeEnvio){
+
+
+  // Envia para o Banco de Dados
+  if (tempoAtual - tempoAnterior >= tempoDeEnvio) {
+    temperatura =  MediaTemperatura(amostra);
+    umidade = MediaUmidade(amostra);
     EnviaProBD();
     tempoAnterior = tempoAtual;
   }
-   
+
 
 }
 
@@ -183,8 +170,6 @@ void InitWiFi() {
 
 
 void  EnviaProBD() {
-
-
 
   WiFiClient client;
   const int httpPort = 8080;
@@ -216,38 +201,37 @@ void  EnviaProBD() {
 
   Serial.println("\nclosing connection");
 }
-void ConexaoTelegram(){
-     // Conecta cliente com SSL
+void ConexaoTelegram() {
 
-  client.setFingerprint("F2:AD:29:9C:34:48:DD:8D:F4:CF:52:32:F6:57:33:68:2E:81:C1:90");
-  while (!client.connect("api.telegram.org", 443))
-  {
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(200);
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(200);
+  TBMessage msg;
+  myBot.wifiConnect(ssid, password);
+
+  myBot.setTelegramToken(BOT_TOKEN);
+  if (myBot.testConnection()) {
+    Serial.println("Conexao Ok!");
+    myBot.sendMessage(ADMINISTRADOR, "Estou ligado e pronto para transmitir!", "");
   }
-  bot.sendMessage(ADMINISTRADOR, "Estou ligado e pronto para transmitir! ", ""); //Informa quando estiver ligado e pronto para transmitir
-
+  else
+    Serial.println("Falha na conexao!");
 }
 
 
-double MediaTemperatura(int amostra) {   //Função para calcular a media de 20 leituras de Temperatura
+double MediaTemperatura(int amostra) {   //Função para calcular a media da Temperatura
   double media = 0.0;
-   sensors_event_t humidity, temp;
+  sensors_event_t humidity, temp;
   aht.getEvent(&humidity, &temp);
-  Serial.println( temp.temperature);
+  // Serial.println( temp.temperature);
   for (int i = 0 ; i < amostra; i++) {
     media +=  temp.temperature;
   }
   return media / amostra;
 }
 
-double MediaUmidade(int amostra) { //Função para calcular a media de 20 leituras de Umidade
+double MediaUmidade(int amostra) { //Função para calcular a media da Umidade
   double media = 0.0;
-   sensors_event_t humidity, temp;
+  sensors_event_t humidity, temp;
   aht.getEvent(&humidity, &temp);
-  Serial.println(humidity.relative_humidity);
+  //Serial.println(humidity.relative_humidity);
   for (int i = 0 ; i < amostra; i++) {
     media +=  humidity.relative_humidity;
   }
