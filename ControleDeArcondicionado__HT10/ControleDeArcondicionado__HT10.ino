@@ -1,10 +1,10 @@
 // INCLUSÃO DE BIBLIOTECAS
 #include <ESP8266WiFi.h>
 #include "seguranca.h"
-#include <UniversalTelegramBot.h>
+//#include <UniversalTelegramBot.h>
 #include <WiFiClientSecure.h>
 #include <Adafruit_AHTX0.h>
-#include "Utilities.h" // for int64ToAscii() helper function
+//#include "Utilities.h" // for int64ToAscii() helper function
 
 #include "CTBot.h"
 CTBot myBot;
@@ -27,7 +27,7 @@ int IRledPin =  13;
 
 
 //Variaveis do bot
-String mensagem = "\t\t\tLista de Comandos\n\n(TEMPERATURA,Temperatura,temperatura) - retorana a temperatura;\n\n(UMIDADE,Umidade,umidade) - Retorana a umidade;\n\n(STATUS,Status,status) - Retorana a temperatura e umidade;\n\n\t\t\tCOMANDOS DO ADMINISTRADOR\n\n(LIGAR,Ligar,ligar) - Liga o ar-condicionado\n\n(DESLIGAR,Desligar,desligar) - Desliga o ar-condicionado\n\n(Valores entre 17 e 22) - Muda a temperatura do ar-condicionado\n";
+String mensagem = "\t\t\tLista de Comandos\n\n- Temperatura\n\n- Umidade\n\n- Status\n\n\t\t\tCOMANDOS DO ADMINISTRADOR\n\n- Ligar\n\n- Desligar\n\n(Valores entre 17 e 22) - Muda a temperatura do ar-condicionado\n";
 int ADMINISTRADOR = 1425097270;  // ID DO BOT DO ADMINISTRADOR
 #define BOT_TOKEN "2063266093:AAEd_NNik81K4gCj_G2TiJIuh2H_3AD9We4"  //chave Token Bot Telegram
 
@@ -44,7 +44,7 @@ const char* host =  SECRET_HOST;
 
 // cliente SSL necessario para a Biblioteca
 WiFiClientSecure client;
-UniversalTelegramBot bot(BOT_TOKEN, client);
+//UniversalTelegramBot bot(BOT_TOKEN, client);
 
 
 
@@ -72,65 +72,73 @@ void setup() {
 
   // ESPERA O SERIAL ESTAR PRONTO
   while (!Serial);
-
   InitWiFi();
   ConexaoTelegram();
-
 }
 
 void loop() {
   unsigned long tempoAtual = millis();
 
+  if (WiFi.status() != WL_CONNECTED) {
+    InitWiFi();
+    ConexaoTelegram();
+  }
 
   TBMessage msg;
   //Testa se o bot recebeu menssagem
   if (CTBotMessageText == myBot.getNewMessage(msg)) {
 
     String MensagemRecebida = msg.text;
+    MensagemRecebida.toUpperCase();
     int novaTemp = MensagemRecebida.toInt();
 
     //Lista de comandos
-    if (MensagemRecebida == "/start") {
+    if (MensagemRecebida == "/START") {
       myBot.sendMessage(msg.sender.id, (String)mensagem, "");
     }
 
     //Comandos publicos
     //=========================================================================================================================================================================================================
-    if (MensagemRecebida == "TEMPERATURA" || MensagemRecebida == "Temperatura" || MensagemRecebida == "temperatura") {
+    else if (MensagemRecebida == "TEMPERATURA" || MensagemRecebida == "/TEMPERATURA") {
       temperatura =  MediaTemperatura(amostra);
       myBot.sendMessage(msg.sender.id, msg.sender.firstName + " " + msg.sender.lastName + "\nTemperatura: " + (String)temperatura + " °C");
     }
-    if (MensagemRecebida == "UMIDADE" || MensagemRecebida == "Umidade" || MensagemRecebida == "umidade") {
+    else if (MensagemRecebida == "UMIDADE" || MensagemRecebida == "/UMIDADE") {
       umidade = MediaUmidade(amostra);//Leitura da Umidade
       myBot.sendMessage(msg.sender.id, msg.sender.firstName + " " + msg.sender.lastName +  "\nUmidade: " + (String)umidade + " RH%", "");
     }
-    if (MensagemRecebida == "STATUS" || MensagemRecebida == "Status" || MensagemRecebida == "status") {
+    else if (MensagemRecebida == "STATUS" || MensagemRecebida == "/STATUS") {
       temperatura =  MediaTemperatura(amostra);
       umidade = MediaUmidade(amostra);
       myBot.sendMessage(msg.sender.id, msg.sender.firstName + " " + msg.sender.lastName +  "\nTemperatura: " + (String)temperatura + " °C\n" + "Umidade: " + (String)umidade + " RH%", "");
-    }
+    }else
+      myBot.sendMessage(msg.sender.id, msg.sender.firstName + " " + msg.sender.lastName +
+                        "\nComando não encontrado, para acessar a lista de comandos envie '/start'");
+
     //=========================================================================================================================================================================================================
 
     //Comandos de Administrador
-    if (msg.sender.id != ADMINISTRADOR) {
-      myBot.sendMessage(ADMINISTRADOR, msg.sender.firstName + " " + msg.sender.lastName  + "\nChat ID: " + int64ToAscii(msg.group.id) + "\nSolicitou: " + MensagemRecebida, "");
+     if (msg.sender.id != ADMINISTRADOR) {
+      myBot.sendMessage(ADMINISTRADOR, msg.sender.firstName + " " + msg.sender.lastName  + "\nChat ID: " + int(msg.group.id) + "\nSolicitou: " + MensagemRecebida, "");
     }
-    if (msg.sender.id == ADMINISTRADOR && (novaTemp >= 17 && novaTemp <= 22)) {
+    else if (msg.sender.id == ADMINISTRADOR && (novaTemp >= 17 && novaTemp <= 22)) {
 
       myBot.sendMessage(ADMINISTRADOR, "Temperatura atualizada para " + (String)novaTemp + " °C", "");
       setTemp(novaTemp);
     }
-    if (msg.sender.id == ADMINISTRADOR && (novaTemp < 17 || novaTemp > 22) && novaTemp != 0) {
+    else if (msg.sender.id == ADMINISTRADOR && (novaTemp < 17 || novaTemp > 22) && novaTemp != 0) {
       myBot.sendMessage(ADMINISTRADOR, " Por segurança a temperatura só pode variar entre 17 e 22 °C", "");
     }
-    if (msg.sender.id == ADMINISTRADOR && (MensagemRecebida == "ligar" || MensagemRecebida == "Ligar" || MensagemRecebida == "LIGAR")) {
+    else if (msg.sender.id == ADMINISTRADOR && (MensagemRecebida == "LIGAR" || MensagemRecebida == "/LIGAR")) {
       liga();
       myBot.sendMessage(ADMINISTRADOR, " Arcondicionado Ligado!", "");
     }
-    if (msg.sender.id == ADMINISTRADOR && (MensagemRecebida == "DESLIGAR" || MensagemRecebida == "Desligar" || MensagemRecebida == "desligar")) {
+    else if (msg.sender.id == ADMINISTRADOR && (MensagemRecebida == "DESLIGAR" || MensagemRecebida == "/DESLIGAR")) {
       desliga();
       myBot.sendMessage(ADMINISTRADOR, " Arcondicionado Desligado!", "");
-    }
+    } else
+      myBot.sendMessage(msg.sender.id, msg.sender.firstName + " " + msg.sender.lastName +
+                        "\nComando não encontrado, para acessar a lista de comandos envie '/start'");
 
   }
 
