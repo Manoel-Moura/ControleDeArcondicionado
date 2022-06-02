@@ -1,7 +1,6 @@
 // INCLUSÃO DE BIBLIOTECAS
 #include <ESP8266WiFi.h>
 #include "seguranca.h"
-//#include <UniversalTelegramBot.h>
 #include <WiFiClientSecure.h>
 #include <Adafruit_AHTX0.h>
 //#include "Utilities.h" // for int64ToAscii() helper function
@@ -19,8 +18,6 @@ unsigned long tempoAnterior = 0;
 double temperatura;
 double umidade;
 #define R1 2    // GPIO_14 
-//int Bot_mtbs = 1000;
-//long Bot_lasttime;
 int amostra = 10;
 sensors_event_t humidity, temp;
 int IRledPin =  13;
@@ -44,7 +41,6 @@ const char* host =  SECRET_HOST;
 
 // cliente SSL necessario para a Biblioteca
 WiFiClientSecure client;
-//UniversalTelegramBot bot(BOT_TOKEN, client);
 
 
 
@@ -74,6 +70,9 @@ void setup() {
   while (!Serial);
   InitWiFi();
   ConexaoTelegram();
+  temperatura =  MediaTemperatura(50);
+  umidade = MediaUmidade(50);
+  EnviaProBD();
 }
 
 void loop() {
@@ -111,14 +110,14 @@ void loop() {
       temperatura =  MediaTemperatura(amostra);
       umidade = MediaUmidade(amostra);
       myBot.sendMessage(msg.sender.id, msg.sender.firstName + " " + msg.sender.lastName +  "\nTemperatura: " + (String)temperatura + " °C\n" + "Umidade: " + (String)umidade + " RH%", "");
-    }else
+    } else
       myBot.sendMessage(msg.sender.id, msg.sender.firstName + " " + msg.sender.lastName +
                         "\nComando não encontrado, para acessar a lista de comandos envie '/start'");
 
     //=========================================================================================================================================================================================================
 
     //Comandos de Administrador
-     if (msg.sender.id != ADMINISTRADOR) {
+    if (msg.sender.id != ADMINISTRADOR) {
       myBot.sendMessage(ADMINISTRADOR, msg.sender.firstName + " " + msg.sender.lastName  + "\nChat ID: " + int(msg.group.id) + "\nSolicitou: " + MensagemRecebida, "");
     }
     else if (msg.sender.id == ADMINISTRADOR && (novaTemp >= 17 && novaTemp <= 22)) {
@@ -136,17 +135,15 @@ void loop() {
     else if (msg.sender.id == ADMINISTRADOR && (MensagemRecebida == "DESLIGAR" || MensagemRecebida == "/DESLIGAR")) {
       desliga();
       myBot.sendMessage(ADMINISTRADOR, " Arcondicionado Desligado!", "");
-    } else
-      myBot.sendMessage(msg.sender.id, msg.sender.firstName + " " + msg.sender.lastName +
-                        "\nComando não encontrado, para acessar a lista de comandos envie '/start'");
+    }
 
   }
 
 
   // Envia para o Banco de Dados
   if (tempoAtual - tempoAnterior >= tempoDeEnvio) {
-    temperatura =  MediaTemperatura(amostra);
-    umidade = MediaUmidade(amostra);
+    temperatura =  MediaTemperatura(50);
+    umidade = MediaUmidade(50);
     EnviaProBD();
     tempoAnterior = tempoAtual;
   }
@@ -171,7 +168,6 @@ void InitWiFi() {
     delay(50);
   }
   Serial.println("Conexão Wifi estabelecida");
-  // print out info about the connection:
   Serial.print("My IP address is: ");
   Serial.println(WiFi.localIP());
 }
@@ -180,13 +176,13 @@ void InitWiFi() {
 void  EnviaProBD() {
 
   WiFiClient client;
-  const int httpPort = 8080;
+  const int httpPort = 8181;
   if (!client.connect(host, httpPort)) {
     Serial.println("connection failed");
     return;
   }
 
-  client.print(String("GET http://10.107.4.5/iot_mysql/conexaoFred.php?") +
+  client.print(String("GET http://10.107.4.2/apiFredPiripiri.php?") +
                ("&temperatura=") + temperatura +
                ("&umidade=") + umidade +
                " HTTP/1.1\r\n" +
@@ -227,9 +223,10 @@ void ConexaoTelegram() {
 double MediaTemperatura(int amostra) {   //Função para calcular a media da Temperatura
   double media = 0.0;
   sensors_event_t humidity, temp;
-  aht.getEvent(&humidity, &temp);
   // Serial.println( temp.temperature);
   for (int i = 0 ; i < amostra; i++) {
+    aht.getEvent(&humidity, &temp);
+
     media +=  temp.temperature;
   }
   return media / amostra;
@@ -238,9 +235,8 @@ double MediaTemperatura(int amostra) {   //Função para calcular a media da Tem
 double MediaUmidade(int amostra) { //Função para calcular a media da Umidade
   double media = 0.0;
   sensors_event_t humidity, temp;
-  aht.getEvent(&humidity, &temp);
-  //Serial.println(humidity.relative_humidity);
   for (int i = 0 ; i < amostra; i++) {
+    aht.getEvent(&humidity, &temp);
     media +=  humidity.relative_humidity;
   }
   return media / amostra;
