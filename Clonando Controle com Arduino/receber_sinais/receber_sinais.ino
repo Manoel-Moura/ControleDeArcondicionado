@@ -1,6 +1,6 @@
 // CODIGO EM CC MODIFICADO POR NERDKINGTEAM
 // VISITE: nerdking.com.br
-// youtube.com/nerdkingteam
+// https://www.youtube.com/watch?v=5rZQZ7Q8roo
 
 #define IRpin_PIN      PIND
 #define IRpin          2
